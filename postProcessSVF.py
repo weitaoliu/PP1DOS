@@ -486,7 +486,117 @@ class sootData(basicData):
         return self.SVFBINDectList
 
 
-# TODO: add new classes for outputting the SVF or other variables when using CRECK mechanism
+# TODO: add new classes for outputting the SVF or other variables when using CRECK mechanism,
+# Now, this work is basically DONE, but codes have not been checked.
+class readSootData:
+
+    def __init__(self, fileDateset):
+        # -- func: getAllDataContainer()
+        self.datasetPath = fileDateset
+        self.allInContainer = []
+        self.getAllDataContainer()
+        # -- func: removeWhiteSpaces()
+        self.localType = None
+        self.localDetectList = None
+        self.localSizeOfDL = None
+        self.noWhiteSpaceList = None
+        self.tempName = ''
+        self.ifWhiteSpace = False
+        # -- func:getHeader()
+        self.headerList = []
+        self.numOfVariables = None
+        self.numOfGrids = None
+        self.getHeader()
+        # -- func: getDataProfiles()
+        self.localList = None
+        self.dataList = None
+        self.tempList = None
+        self.dataListOrganized = []
+        self.getDataProfiles()  # to fill out the List: dataListOrganized
+        # -- func:getDataWithName
+        self.localName = None
+        self.dataList4Name = None
+        self.indexInHeader = None
+        # -- func: getDistance()
+        self.desiredUnit = None
+        self.localDistanceList = None
+
+    def getAllDataContainer(self):
+        with open(self.datasetPath, 'r') as sootFile:
+            self.allInContainer = sootFile.readlines()
+
+    def removeWhiteSpaces(self, datatype, detectList):
+
+        self.localType = datatype
+        self.localDetectList = detectList
+        self.localSizeOfDL = len(self.localDetectList)
+        self.noWhiteSpaceList = []
+        if self.localSizeOfDL <= 0:
+            print('Something is wrong with input list, please check it again.')
+            exit()
+        else:
+            for self.x in range(self.localSizeOfDL):
+                if self.localDetectList[self.x] != ' ':
+                    self.tempName += self.localDetectList[self.x]
+                    self.ifWhiteSpace = False
+                elif self.localDetectList[self.x] == ' ' and self.ifWhiteSpace == False:
+                    self.ifWhiteSpace = True
+                    if datatype == 'string':
+                        self.noWhiteSpaceList.append(self.tempName)
+                    elif datatype == 'number':
+                        self.noWhiteSpaceList.append(float(self.tempName))
+                    self.tempName = ''
+                elif self.localDetectList[self.x] == ' ' and self.ifWhiteSpace == True:
+                    continue
+
+            return self.noWhiteSpaceList
+
+    def getHeader(self):  # the header file corresponds the first line
+
+        self.headerList = self.removeWhiteSpaces('string', self.allInContainer[0])
+        self.numOfVariables = len(self.headerList)
+        self.numOfGrids = len(self.allInContainer) - 1
+
+    def getDataProfiles(self):
+        self.dataList = []
+        for self.x in range(0, self.numOfGrids):
+            self.localList = self.allInContainer[self.x + 1]
+            self.dataList.append(self.removeWhiteSpaces('number', self.localList))
+        # next is to re-organize the data
+        for self.x in range(0, self.numOfVariables):  # to get the index of a variable
+            self.tempList = []
+            for self.y in range(0, self.numOfGrids):  # to scan over grids
+                self.tempList.append(self.dataList[self.y][self.x])
+            self.dataListOrganized.append(self.tempList)
+
+    def getDataWithName(self, name):
+        self.localName = name
+        for self.x in range(len(self.headerList)):
+            if self.localName in self.headerList[self.x]:
+                self.indexInHeader = self.x
+                break
+            elif self.x == len(self.headerList) and self.localName not in self.headerList[self.x]:
+                print(self.localName, ' data is not included in the file, please check it again.')
+                exit()
+            else:
+                continue
+        self.dataList4Name = self.dataListOrganized[self.indexInHeader]
+
+        return self.dataList4Name
+
+    def getDistance(self, unit):
+        self.localDistanceList = self.getDataWithName('x[cm]')
+        self.desiredUnit = unit
+        if unit == 'mm':
+            self.localDistanceList = [i * 10 for i in self.localDistanceList]
+        elif unit == 'm':
+            self.localDistanceList = [i / 100 for i in self.localDistanceList]
+
+    def getTemperature(self):
+        self.getDataWithName('T[K]')
+
+    def getDensity(self):
+        self.getDataWithName('rho[kg/m3]')
 
 
 # TODO: should make the interface for above codes:
@@ -501,78 +611,85 @@ if mechanismFormat == 'SYD':
         dataObject = basicData(filePathway)
     if ifProcessSVF:
         dataObject = sootData(filePathway)
-# elif mechanismFormat == 'CRECK':
-#     if ifAlreadySVF:
+elif mechanismFormat == 'CRECK':
+    if ifAlreadySVF:
+        dataObject = readSootData(filePathway)
+# ---------------------------------------------------------------
+# ---- here is the test for readSootData class
+temperature = dataObject.getDataWithName('x[cm]')
+print(temperature)
+
+# ---- Done
+# ---------------------------------------------------------------
 
 # ---- finished, ! NOTE that a new class will be added for outputting CRECK soot dataset
 
-# ---- to write the desired variables to .cvs file
-# -- get the distance
-if '[mm]' in basicOutputList[0]:
-    distance = dataObject.getDistance('mm')
-elif '[cm]' in basicOutputList[0]:
-    distance = dataObject.getDistance('cm')
-elif '[m]' in basicOutputList[0]:
-    distance = dataObject.getDistance('m')
-else:
-    distance = []
-    print('Something wrong with distance, please check again!')
-    exit()
-
-distance.insert(0, basicOutputList[0])  # set the header
-# --
-
-# -- get the temperature
-temperature = dataObject.getTemperature()
-temperature.insert(0, basicOutputList[1])
-# --
-
-# -- get the density
-density = dataObject.getDensity()
-density.insert(0, basicOutputList[2])
-# --
-
-# -- get the pressure
-pressure = dataObject.getPressure()
-pressure.insert(0, basicOutputList[3])
-# --
-basicVariables = [distance, temperature, density, pressure]
-# -- to get the other variables' dataset (such as species)
-otherVariables = []
-for x in range(len(otherOutputList)):
-    if otherOutputList[x] not in dataObject.getBasics4Name():
-        print('Something wrong with the variable name, please check it again!')
-        print('The problem comes from the name: ' + otherOutputList[x])
-        exit()
-
-    else:
-        localData = dataObject.getTargetDataViaTagName(otherOutputList[x])
-        localData.insert(0, otherOutputList[x])
-        otherVariables.append(localData)
-        localData = []
-# --
-
-# -- to get soot-related variables' dataset
-dataObject.BINDetect(BINRemoveFrom)
-sootVF = dataObject.getSVFBINDect(sootDensityUSD)
-sootVF.insert(0, 'soot volume fraction')
-
-if ifOutputVariables:
-    with open(nameOfFile, 'w') as fd:
-        csv_writer = writer(fd, delimiter=',')
-        csv_writer.writerows(zip(*basicVariables, *otherVariables, sootVF))
-        fd.write("\n")
-
-# to use plot for preview the data
-plt.plot(distance[1:], temperature[1:])
-plt.show()
-
-
-# plt.plot(test.getDistance('mm'),test.getSootVF())
+# # ---- to write the desired variables to .cvs file
+# # -- get the distance
+# if '[mm]' in basicOutputList[0]:
+#     distance = dataObject.getDistance('mm')
+# elif '[cm]' in basicOutputList[0]:
+#     distance = dataObject.getDistance('cm')
+# elif '[m]' in basicOutputList[0]:
+#     distance = dataObject.getDistance('m')
+# else:
+#     distance = []
+#     print('Something wrong with distance, please check again!')
+#     exit()
+#
+# distance.insert(0, basicOutputList[0])  # set the header
+# # --
+#
+# # -- get the temperature
+# temperature = dataObject.getTemperature()
+# temperature.insert(0, basicOutputList[1])
+# # --
+#
+# # -- get the density
+# density = dataObject.getDensity()
+# density.insert(0, basicOutputList[2])
+# # --
+#
+# # -- get the pressure
+# pressure = dataObject.getPressure()
+# pressure.insert(0, basicOutputList[3])
+# # --
+# basicVariables = [distance, temperature, density, pressure]
+# # -- to get the other variables' dataset (such as species)
+# otherVariables = []
+# for x in range(len(otherOutputList)):
+#     if otherOutputList[x] not in dataObject.getBasics4Name():
+#         print('Something wrong with the variable name, please check it again!')
+#         print('The problem comes from the name: ' + otherOutputList[x])
+#         exit()
+#
+#     else:
+#         localData = dataObject.getTargetDataViaTagName(otherOutputList[x])
+#         localData.insert(0, otherOutputList[x])
+#         otherVariables.append(localData)
+#         localData = []
+# # --
+#
+# # -- to get soot-related variables' dataset
+# dataObject.BINDetect(BINRemoveFrom)
+# sootVF = dataObject.getSVFBINDect(sootDensityUSD)
+# sootVF.insert(0, 'soot volume fraction')
+#
+# if ifOutputVariables:
+#     with open(nameOfFile, 'w') as fd:
+#         csv_writer = writer(fd, delimiter=',')
+#         csv_writer.writerows(zip(*basicVariables, *otherVariables, sootVF))
+#         fd.write("\n")
+#
+# # to use plot for preview the data
+# plt.plot(distance[1:], temperature[1:])
 # plt.show()
-
-# print(text.getDistance('mm'))
-# print(text.getTemperature())
+#
+# # plt.plot(test.getDistance('mm'),test.getSootVF())
+# # plt.show()
+#
+# # print(text.getDistance('mm'))
+# # print(text.getTemperature())
 
 
 # ---- END PART ----
