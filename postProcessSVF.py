@@ -521,6 +521,8 @@ class readSootData:
         self.desiredUnit = None
         self.localDistanceList = None
 
+        self.localTemperature = None
+
     def getAllDataContainer(self):
         with open(self.datasetPath, 'r') as sootFile:
             self.allInContainer = sootFile.readlines()
@@ -592,8 +594,11 @@ class readSootData:
         elif unit == 'm':
             self.localDistanceList = [i / 100 for i in self.localDistanceList]
 
+        return self.localDistanceList
+
     def getTemperature(self):
-        self.getDataWithName('T[K]')
+        self.localTemperature = self.getDataWithName('T[K]')
+        return self.localTemperature
 
     def getDensity(self):
         self.getDataWithName('rho[kg/m3]')
@@ -616,6 +621,8 @@ elif mechanismFormat == 'CRECK':
         dataObject = readSootData(filePathway)
 # ---------------------------------------------------------------
 # ---- here is the test for readSootData class
+distance = dataObject.getDistance('mm')
+print(distance)
 temperature = dataObject.getDataWithName('x[cm]')
 print(temperature)
 
